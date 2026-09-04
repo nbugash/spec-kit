@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import shlex
+import shutil
 from pathlib import Path, PurePath
 from unittest.mock import MagicMock, patch
 
@@ -26,6 +27,15 @@ from specify_cli.integrations.claude import ClaudeIntegration
 from specify_cli.integrations.cursor_agent import CursorAgentIntegration
 from specify_cli.integrations.opencode import OpencodeIntegration
 from specify_cli.integrations.copilot import CopilotIntegration
+
+# Mirrors the launcher lookup in specify_cli.events._resolve_event_command_argv
+# (`shutil.which("pwsh") or shutil.which("powershell")`) so the guard cannot drift
+# from the code under test. The no-launcher branch has its own dedicated test, so
+# skipping here loses no coverage.
+requires_powershell_launcher = pytest.mark.skipif(
+    not (shutil.which("pwsh") or shutil.which("powershell")),
+    reason="requires pwsh or powershell on PATH",
+)
 
 
 # -- resolve_events --------------------------------------------------------
@@ -1328,6 +1338,7 @@ class TestCommandRunner:
         argv = _resolve_event_command_argv(template, tmp_path, None)
         assert argv is None
 
+    @requires_powershell_launcher
     def test_ps_variant_prefixed_with_powershell_launcher(self, tmp_path):
         """S6: the ps variant prefixes argv with pwsh/powershell -File so
         subprocess.run(shell=False) can execute the .ps1 script."""
