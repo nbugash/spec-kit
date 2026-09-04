@@ -54,6 +54,8 @@ if ((Test-Path $paths.CONTRACTS_DIR) -and (Get-ChildItem -Path $paths.CONTRACTS_
     $docs += 'contracts/'
 }
 if (Test-Path $paths.QUICKSTART) { $docs += 'quickstart.md' }
+if (Test-Path $paths.ARCHITECTURE) { $docs += 'architecture.md' }
+if (Test-Path $paths.DESIGN) { $docs += 'design.md' }
 
 # Resolve tasks template through override stack
 $tasksTemplate = Resolve-Template -TemplateName 'tasks-template' -RepoRoot $paths.REPO_ROOT
@@ -90,4 +92,6 @@ if ($Json) {
     Test-FileExists -Path $paths.DATA_MODEL -Description 'data-model.md' | Where-Object { $_ -isnot [bool] }
     Test-DirHasFiles -Path $paths.CONTRACTS_DIR -Description 'contracts/' | Where-Object { $_ -isnot [bool] }
     Test-FileExists -Path $paths.QUICKSTART -Description 'quickstart.md' | Where-Object { $_ -isnot [bool] }
+    Test-FileExists -Path $paths.ARCHITECTURE -Description 'architecture.md' | Where-Object { $_ -isnot [bool] }
+    Test-FileExists -Path $paths.DESIGN -Description 'design.md' | Where-Object { $_ -isnot [bool] }
 }

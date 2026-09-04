@@ -249,8 +249,9 @@ class MarkdownIntegrationTests:
                          "resolve-template.ps1", "setup-plan.ps1", "setup-tasks.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
 
-        for name in ["checklist-template.md",
-                     "constitution-template.md", "plan-template.md",
+        for name in ["architecture-template.md", "checklist-template.md",
+                     "constitution-template.md", "design-template.md",
+                     "plan-template.md",
                      "spec-template.md", "tasks-template.md"]:
             files.append(f".specify/templates/{name}")
 

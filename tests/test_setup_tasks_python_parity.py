@@ -268,3 +268,41 @@ def test_python_text_output_survives_a_legacy_stdout_code_page(repo: Path) -> No
     for doc in ("research.md", "data-model.md", "contracts/", "quickstart.md"):
         assert doc in result.stdout, (doc, result.stdout)
     assert "[OK] research.md" in normalize_status_text(result.stdout), result.stdout
+
+
+# Fixed, append-only order: the Phase 2 artifacts go last.
+EXPECTED_DOCS_WITH_DESIGN = [
+    "research.md",
+    "data-model.md",
+    "contracts/",
+    "quickstart.md",
+    "architecture.md",
+    "design.md",
+]
+
+
+@requires_bash
+def test_all_variants_agree_on_design_artifacts(tmp_path: Path) -> None:
+    """All three variants advertise the Phase 2 artifacts identically."""
+    repo = _setup_repo(tmp_path)
+    feature = repo / "specs" / "001-my-feature"
+    (feature / "research.md").write_text("# research\n", encoding="utf-8")
+    (feature / "data-model.md").write_text("# model\n", encoding="utf-8")
+    (feature / "quickstart.md").write_text("# quickstart\n", encoding="utf-8")
+    (feature / "contracts" / "v1").mkdir(parents=True)
+    (feature / "architecture.md").write_text("# architecture\n", encoding="utf-8")
+    (feature / "design.md").write_text("# design\n", encoding="utf-8")
+
+    commands = [bash_cmd(repo, SCRIPT, "--json"), py_cmd(repo, SCRIPT, "--json")]
+    if HAS_POWERSHELL:
+        commands.append(ps_cmd(repo, SCRIPT, "-Json"))
+
+    payloads = []
+    for command in commands:
+        result = run(command, repo)
+        assert result.returncode == 0, result.stderr
+        payload = json_stdout(result)
+        assert isinstance(payload, dict)
+        payloads.append(payload["AVAILABLE_DOCS"])
+
+    assert all(docs == EXPECTED_DOCS_WITH_DESIGN for docs in payloads), payloads

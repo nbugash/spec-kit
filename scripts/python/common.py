@@ -131,6 +131,8 @@ class FeaturePaths:
     data_model: Path
     quickstart: Path
     contracts_dir: Path
+    architecture: Path
+    design: Path
 
 
 def get_feature_paths(
@@ -180,6 +182,8 @@ def get_feature_paths(
         data_model=feature_dir / "data-model.md",
         quickstart=feature_dir / "quickstart.md",
         contracts_dir=feature_dir / "contracts",
+        architecture=feature_dir / "architecture.md",
+        design=feature_dir / "design.md",
     )
 
 

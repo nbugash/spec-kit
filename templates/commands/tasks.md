@@ -64,7 +64,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 2. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities)
-   - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
+   - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios), architecture.md (components, boundaries, deployment), design.md (classes, interfaces, sequences)
    - **IF EXISTS**: Load `/memory/constitution.md` for project principles and governance constraints
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
@@ -74,6 +74,8 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map interface contracts to user stories
    - If research.md exists: Extract decisions for setup tasks
+   - If architecture.md exists: Map components to the user stories they serve
+   - If design.md exists: Map classes and interfaces to tasks with concrete file paths
    - Generate tasks organized by user story (see Task Generation Rules below)
    - Generate dependency graph showing user story completion order
    - Create parallel execution examples per user story
@@ -198,7 +200,22 @@ Every task MUST strictly follow this format:
    - If entity serves multiple stories: Put in earliest story or Setup phase
    - Relationships → service layer tasks in appropriate story phase
 
-4. **From Setup/Infrastructure**:
+4. **From Architecture & Design** (when architecture.md / design.md exist):
+   - Each component in architecture.md → map to the user story it serves; a component
+     serving several stories belongs in the earliest one, or in Foundational when it blocks
+     all of them
+   - Each class and interface in design.md → an implementation task naming the concrete file
+     path from that document's Module & File Layout section. This is what makes tasks
+     executable: prefer "Implement UserService in src/services/user_service.py" over
+     "implement the service layer"
+   - Each key flow in design.md's Sequence Diagrams → an integration task in the story that
+     owns the flow
+   - Deployment units in architecture.md → Setup or Polish tasks, never story tasks, since
+     they are not independently testable slices of user value
+   - If these documents are absent, skip this rule entirely and derive tasks from the other
+     artifacts; their absence is normal for features planned before they existed
+
+5. **From Setup/Infrastructure**:
    - Shared infrastructure → Setup phase (Phase 1)
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase

@@ -671,3 +671,33 @@ def test_powershell_text_output_lists_available_docs(prereq_repo: Path) -> None:
     # The existing file reports [OK], the missing ones [FAIL].
     assert "[OK] research.md" in _normalize_status_text(ps.stdout), ps.stdout
     assert "[FAIL] quickstart.md" in _normalize_status_text(ps.stdout), ps.stdout
+
+
+@requires_bash
+def test_design_artifacts_listed_and_match_bash(prereq_repo: Path) -> None:
+    """architecture.md and design.md are advertised, last, and identically."""
+    feat = prereq_repo / "specs" / "001-my-feature"
+    feat.mkdir(parents=True)
+    (feat / "plan.md").write_text("# plan\n", encoding="utf-8")
+    (feat / "research.md").write_text("# research\n", encoding="utf-8")
+    (feat / "data-model.md").write_text("# model\n", encoding="utf-8")
+    (feat / "quickstart.md").write_text("# quickstart\n", encoding="utf-8")
+    (feat / "contracts" / "v1").mkdir(parents=True)
+    (feat / "architecture.md").write_text("# architecture\n", encoding="utf-8")
+    (feat / "design.md").write_text("# design\n", encoding="utf-8")
+    _write_feature_json(prereq_repo)
+
+    bash = _run(_bash_cmd(prereq_repo, "--json"), prereq_repo)
+    py = _run(_py_cmd(prereq_repo, "--json"), prereq_repo)
+
+    assert py.returncode == bash.returncode == 0
+    assert _json_stdout(py) == _json_stdout(bash)
+    docs = _json_stdout(bash)["AVAILABLE_DOCS"]
+    assert docs == [
+        "research.md",
+        "data-model.md",
+        "contracts/",
+        "quickstart.md",
+        "architecture.md",
+        "design.md",
+    ], docs

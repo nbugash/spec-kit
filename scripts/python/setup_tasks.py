@@ -56,6 +56,10 @@ def _available_docs(paths: FeaturePaths) -> list[str]:
         docs.append("contracts/")
     if paths.quickstart.is_file():
         docs.append("quickstart.md")
+    if paths.architecture.is_file():
+        docs.append("architecture.md")
+    if paths.design.is_file():
+        docs.append("design.md")
     return docs
 
 
@@ -168,6 +172,8 @@ def main(argv: list[str] | None = None) -> int:
         _check_file(paths.data_model, "data-model.md")
         _check_dir(paths.contracts_dir, "contracts/")
         _check_file(paths.quickstart, "quickstart.md")
+        _check_file(paths.architecture, "architecture.md")
+        _check_file(paths.design, "design.md")
     return 0
 
 

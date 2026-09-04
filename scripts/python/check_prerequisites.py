@@ -135,6 +135,12 @@ def _available_docs(paths: FeaturePaths, include_tasks: bool) -> list[str]:
         docs.append("contracts/")
     if paths.quickstart.is_file():
         docs.append("quickstart.md")
+    # Phase 2 design artifacts, before the Phase 3 tasks.md below so the list
+    # follows plan-phase order.
+    if paths.architecture.is_file():
+        docs.append("architecture.md")
+    if paths.design.is_file():
+        docs.append("design.md")
     if include_tasks and paths.tasks.is_file():
         docs.append("tasks.md")
     return docs
@@ -198,6 +204,8 @@ def _print_text_results(paths: FeaturePaths, include_tasks: bool) -> None:
     _check_file(paths.data_model, "data-model.md")
     _check_dir(paths.contracts_dir, "contracts/")
     _check_file(paths.quickstart, "quickstart.md")
+    _check_file(paths.architecture, "architecture.md")
+    _check_file(paths.design, "design.md")
     if include_tasks:
         _check_file(paths.tasks, "tasks.md")
 

@@ -59,7 +59,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, FEATURE_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, FEATURE_DIR, BRANCH, ARCHITECTURE_TEMPLATE_CONTENT, and DESIGN_TEMPLATE_CONTENT. The two template-content values carry the structures for the Phase 2 artifacts, already resolved through the override stack; use them verbatim rather than reading `.specify/templates/` directly, which would bypass every project override, preset and extension. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. **Load context**: Read FEATURE_SPEC and `/memory/constitution.md`. Load IMPL_PLAN template (already copied).
 
@@ -69,6 +69,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Evaluate gates (ERROR if violations unjustified)
    - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
    - Phase 1: Generate data-model.md, contracts/, quickstart.md
+   - Phase 2: Generate architecture.md and design.md
    - Re-evaluate Constitution Check post-design
 
 ## Mandatory Post-Execution Hooks
@@ -107,7 +108,7 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 ## Completion Report
 
-Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated artifacts.
+Command ends after Phase 2 design. Report branch, IMPL_PLAN path, and generated artifacts.
 
 ## Phases
 
@@ -157,6 +158,44 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated 
    - Keep this artifact as a validation/run guide; implementation details belong in `tasks.md` and the implementation phase
 
 **Output**: data-model.md, /contracts/*, quickstart.md
+
+### Phase 2: Architecture & Design
+
+**Prerequisites:** `data-model.md` and `contracts/` complete
+
+Produce both artifacts. They are not optional and not conditional on project type: every
+feature gets both, so downstream commands can rely on a stable artifact set.
+
+1. **Generate `architecture.md`** using ARCHITECTURE_TEMPLATE_CONTENT as the structure:
+   - Fill every section the template declares. A section that does not apply keeps its
+     heading and gets `N/A - <one-line reason>`; never delete a section, and never invent a
+     one-box diagram to fill one
+   - Diagrams are Mermaid, matching the template; introduce no other diagram format
+   - Reference `research.md` decisions by heading in Architectural Decisions. Do NOT restate
+     their rationale or alternatives - `research.md` owns those
+   - Complete the **Phase 1 Reconciliation** section by checking this architecture against
+     the already-written `data-model.md` and `contracts/`. Record every conflict and the
+     action taken, or write "No conflicts found." This section exists because the
+     architecture is authored after those artifacts, and must not silently inherit a shape
+     it disagrees with
+
+2. **Generate `design.md`** using DESIGN_TEMPLATE_CONTENT as the structure:
+   - Fill every section, with the same `N/A - <reason>` rule
+   - Take the language and version from the Technical Context in `plan.md`, which remains
+     the sole source of truth for the technology stack
+   - Interface descriptions carry **signatures only**. No implementation bodies, no
+     model/service/controller internals - those belong to `tasks.md` and implementation
+   - Persistence Mapping links `data-model.md` entities to the classes that own them. Do
+     NOT copy entity fields or validation rules; duplicating them creates two sources of
+     truth that drift
+
+**If ARCHITECTURE_TEMPLATE_CONTENT or DESIGN_TEMPLATE_CONTENT is empty**, the corresponding
+template could not be resolved. STOP and tell the user to refresh shared templates (for
+example by re-running `specify init` for this project). Do NOT invent a section structure -
+a fabricated structure is worse than a clear error, because it silently breaks the fixed
+section set that every downstream consumer relies on.
+
+**Output**: architecture.md, design.md
 
 ## Key rules
 

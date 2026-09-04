@@ -509,8 +509,10 @@ class SkillsIntegrationTests:
             ]
         # Templates
         files += [
+            ".specify/templates/architecture-template.md",
             ".specify/templates/checklist-template.md",
             ".specify/templates/constitution-template.md",
+            ".specify/templates/design-template.md",
             ".specify/templates/plan-template.md",
             ".specify/templates/spec-template.md",
             ".specify/templates/tasks-template.md",

@@ -26,6 +26,8 @@ from tests.parity_helpers import (
 
 SCRIPT = "setup-plan"
 TEMPLATE_BODY = "# Plan Template\n\nBody.\n"
+ARCHITECTURE_BODY = "# Architecture Template\n\nHLD body.\n"
+DESIGN_BODY = "# Design Template\n\nLLD body.\n"
 
 
 def _setup_repo(tmp_path: Path, name: str = "proj", template: bool = True) -> Path:
@@ -37,6 +39,10 @@ def _setup_repo(tmp_path: Path, name: str = "proj", template: bool = True) -> Pa
         templates = repo / ".specify" / "templates"
         templates.mkdir(parents=True)
         (templates / "plan-template.md").write_text(TEMPLATE_BODY, encoding="utf-8")
+        (templates / "architecture-template.md").write_text(
+            ARCHITECTURE_BODY, encoding="utf-8"
+        )
+        (templates / "design-template.md").write_text(DESIGN_BODY, encoding="utf-8")
     return repo
 
 
@@ -412,7 +418,9 @@ def test_all_variants_emit_feature_dir_not_specs_dir(
             payload = json_stdout(result)
             assert isinstance(payload, dict)
             assert sorted(payload) == [
+                "ARCHITECTURE_TEMPLATE_CONTENT",
                 "BRANCH",
+                "DESIGN_TEMPLATE_CONTENT",
                 "FEATURE_DIR",
                 "FEATURE_SPEC",
                 "IMPL_PLAN",
@@ -428,3 +436,71 @@ def test_all_variants_emit_feature_dir_not_specs_dir(
             value = lines["FEATURE_DIR"]
 
         assert tuple(value.replace("\\", "/").rstrip("/").split("/")[-2:]) == suffix
+
+
+@requires_bash
+def test_all_variants_emit_design_artifact_template_content(tmp_path: Path) -> None:
+    """Phase 2 template content reaches the plan command through the resolver."""
+    repos = [
+        _setup_repo(tmp_path, "bash"),
+        _setup_repo(tmp_path, "powershell"),
+        _setup_repo(tmp_path, "python"),
+    ]
+
+    results = [run(bash_cmd(repos[0], SCRIPT, "--json"), repos[0])]
+    if HAS_POWERSHELL:
+        results.append(run(ps_cmd(repos[1], SCRIPT, "-Json"), repos[1]))
+    results.append(run(py_cmd(repos[2], SCRIPT, "--json"), repos[2]))
+
+    for result in results:
+        assert result.returncode == 0, result.stderr
+        payload = json_stdout(result)
+        assert isinstance(payload, dict)
+        assert payload["ARCHITECTURE_TEMPLATE_CONTENT"] == ARCHITECTURE_BODY
+        assert payload["DESIGN_TEMPLATE_CONTENT"] == DESIGN_BODY
+
+
+@requires_bash
+def test_all_variants_tolerate_missing_design_artifact_templates(
+    tmp_path: Path,
+) -> None:
+    """Not-found degrades to an empty value and exit 0, matching plan-template."""
+    repos = [
+        _setup_repo(tmp_path, "bash", template=False),
+        _setup_repo(tmp_path, "powershell", template=False),
+        _setup_repo(tmp_path, "python", template=False),
+    ]
+
+    results = [run(bash_cmd(repos[0], SCRIPT, "--json"), repos[0])]
+    if HAS_POWERSHELL:
+        results.append(run(ps_cmd(repos[1], SCRIPT, "-Json"), repos[1]))
+    results.append(run(py_cmd(repos[2], SCRIPT, "--json"), repos[2]))
+
+    for result in results:
+        assert result.returncode == 0, result.stderr
+        payload = json_stdout(result)
+        assert isinstance(payload, dict)
+        assert payload["ARCHITECTURE_TEMPLATE_CONTENT"] == ""
+        assert payload["DESIGN_TEMPLATE_CONTENT"] == ""
+
+
+@requires_bash
+def test_all_variants_fail_for_broken_design_template_composition(
+    tmp_path: Path,
+) -> None:
+    """A Phase 2 template that exists but cannot be composed is fatal, not empty."""
+    repos = [
+        _setup_repo(tmp_path, "bash"),
+        _setup_repo(tmp_path, "powershell"),
+        _setup_repo(tmp_path, "python"),
+    ]
+    for current in repos:
+        install_composition_stack(current, "architecture-template", ARCHITECTURE_BODY)
+        break_wrap_layer(current, "architecture-template")
+
+    results = [run(bash_cmd(repos[0], SCRIPT, "--json"), repos[0])]
+    if HAS_POWERSHELL:
+        results.append(run(ps_cmd(repos[1], SCRIPT, "-Json"), repos[1]))
+    results.append(run(py_cmd(repos[2], SCRIPT, "--json"), repos[2]))
+
+    assert all(result.returncode != 0 for result in results)

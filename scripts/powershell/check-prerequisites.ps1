@@ -138,6 +138,11 @@ if ((Test-Path $paths.CONTRACTS_DIR) -and (Get-ChildItem -Path $paths.CONTRACTS_
 
 if (Test-Path $paths.QUICKSTART) { $docs += 'quickstart.md' }
 
+# Phase 2 design artifacts, before the Phase 3 tasks.md below so the list
+# follows plan-phase order.
+if (Test-Path $paths.ARCHITECTURE) { $docs += 'architecture.md' }
+if (Test-Path $paths.DESIGN) { $docs += 'design.md' }
+
 # Include tasks.md if requested and it exists
 if ($IncludeTasks -and (Test-Path $paths.TASKS)) {
     $docs += 'tasks.md'
@@ -178,6 +183,8 @@ if ($Json) {
     Test-FileExists -Path $paths.DATA_MODEL -Description 'data-model.md' | Where-Object { $_ -isnot [bool] }
     Test-DirHasFiles -Path $paths.CONTRACTS_DIR -Description 'contracts/' | Where-Object { $_ -isnot [bool] }
     Test-FileExists -Path $paths.QUICKSTART -Description 'quickstart.md' | Where-Object { $_ -isnot [bool] }
+    Test-FileExists -Path $paths.ARCHITECTURE -Description 'architecture.md' | Where-Object { $_ -isnot [bool] }
+    Test-FileExists -Path $paths.DESIGN -Description 'design.md' | Where-Object { $_ -isnot [bool] }
 
     if ($IncludeTasks) {
         Test-FileExists -Path $paths.TASKS -Description 'tasks.md' | Where-Object { $_ -isnot [bool] }
