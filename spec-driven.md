@@ -92,13 +92,28 @@ Once a feature specification exists, this command creates a comprehensive implem
 3. **Technical Translation**: Converts business requirements into technical architecture and implementation details
 4. **Detailed Documentation**: Generates supporting documents for data models, API contracts, and test scenarios
 5. **Quickstart Validation**: Produces a quickstart guide capturing key validation scenarios
+6. **Architecture & Design**: Produces `architecture.md` (high-level design — system context,
+   components, deployment topology, data flow) and `design.md` (low-level design — class and
+   interface model, signatures, sequence diagrams, state model, error handling), both with
+   Mermaid diagrams
+
+Both design artifacts are generated for every feature. Their section sets are fixed, so a
+section that does not apply is kept and marked `N/A` with a reason rather than filled with a
+fabricated diagram. To adapt the structure for a project, place an override at
+`.specify/templates/overrides/architecture-template.md` or
+`.specify/templates/overrides/design-template.md`; the override stack (project overrides,
+then presets, then extensions, then core) resolves it in place of the built-in structure.
+
+`design.md` links to `data-model.md` for entity fields rather than restating them, and
+`architecture.md` references `research.md` decisions by heading rather than repeating their
+rationale — in both cases so there is one source of truth per fact.
 
 ### The `/speckit.tasks` Command
 
 After a plan is created, this command analyzes the plan and related design documents to generate an executable task list:
 
-1. **Inputs**: Reads `plan.md` (required) and, if present, `data-model.md`, `contracts/`, and `research.md`
-2. **Task Derivation**: Converts contracts, entities, and scenarios into specific tasks
+1. **Inputs**: Reads `plan.md` (required) and, if present, `data-model.md`, `contracts/`, `research.md`, `architecture.md`, and `design.md`
+2. **Task Derivation**: Converts contracts, entities, and scenarios into specific tasks. When `design.md` is present, each class and interface becomes a task naming its concrete file path, and each component in `architecture.md` maps to the user story it serves
 3. **Parallelization**: Marks independent tasks `[P]` and outlines safe parallel groups
 4. **Output**: Writes `tasks.md` in the feature directory, ready for execution by a Task agent
 

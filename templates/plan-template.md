@@ -53,7 +53,9 @@ specs/[###-feature]/
 ├── data-model.md        # Phase 1 output (__SPECKIT_COMMAND_PLAN__ command)
 ├── quickstart.md        # Phase 1 output (__SPECKIT_COMMAND_PLAN__ command)
 ├── contracts/           # Phase 1 output (__SPECKIT_COMMAND_PLAN__ command)
-└── tasks.md             # Phase 2 output (__SPECKIT_COMMAND_TASKS__ command - NOT created by __SPECKIT_COMMAND_PLAN__)
+├── architecture.md      # Phase 2 output (__SPECKIT_COMMAND_PLAN__ command)
+├── design.md            # Phase 2 output (__SPECKIT_COMMAND_PLAN__ command)
+└── tasks.md             # Phase 3 output (__SPECKIT_COMMAND_TASKS__ command - NOT created by __SPECKIT_COMMAND_PLAN__)
 ```
 
 ### Source Code (repository root)

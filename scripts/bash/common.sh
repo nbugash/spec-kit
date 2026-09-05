@@ -228,6 +228,8 @@ get_feature_paths() {
     printf 'DATA_MODEL=%q\n' "$feature_dir/data-model.md"
     printf 'QUICKSTART=%q\n' "$feature_dir/quickstart.md"
     printf 'CONTRACTS_DIR=%q\n' "$feature_dir/contracts"
+    printf 'ARCHITECTURE=%q\n' "$feature_dir/architecture.md"
+    printf 'DESIGN=%q\n' "$feature_dir/design.md"
 }
 
 # Check if jq is available for safe JSON construction

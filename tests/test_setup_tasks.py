@@ -1040,3 +1040,84 @@ def test_dir_has_files_ps_counts_subdir_only_contracts(tasks_repo: Path) -> None
     # $false, so the [OK] marker in stdout — not the return code — is what proves
     # non-emptiness.
     assert "[OK]" in result.stdout and "[FAIL]" not in result.stdout, result.stderr + result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 design artifacts (architecture.md / design.md) in AVAILABLE_DOCS
+# ---------------------------------------------------------------------------
+
+# Order is fixed and append-only: the two Phase 2 artifacts go last so existing
+# order assertions extend rather than shift.
+_EXPECTED_DOCS_WITH_DESIGN = [
+    "research.md",
+    "data-model.md",
+    "contracts/",
+    "quickstart.md",
+    "architecture.md",
+    "design.md",
+]
+_EXPECTED_DOCS_WITHOUT_DESIGN = _EXPECTED_DOCS_WITH_DESIGN[:4]
+
+
+def _write_all_optional_docs(feat: Path, *, design_artifacts: bool) -> None:
+    (feat / "research.md").write_text("# research\n", encoding="utf-8")
+    (feat / "data-model.md").write_text("# model\n", encoding="utf-8")
+    (feat / "quickstart.md").write_text("# quickstart\n", encoding="utf-8")
+    (feat / "contracts").mkdir(exist_ok=True)
+    (feat / "contracts" / "api.md").write_text("# contract\n", encoding="utf-8")
+    if design_artifacts:
+        (feat / "architecture.md").write_text("# architecture\n", encoding="utf-8")
+        (feat / "design.md").write_text("# design\n", encoding="utf-8")
+
+
+def _run_setup_tasks_bash(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    script = repo / ".specify" / "scripts" / "bash" / "setup-tasks.sh"
+    return subprocess.run(
+        ["bash", str(script), *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_clean_env(),
+    )
+
+
+@requires_bash
+def test_setup_tasks_bash_lists_design_artifacts(tasks_repo: Path) -> None:
+    """Both Phase 2 artifacts are advertised, last, in the documented order."""
+    feat = _minimal_feature(tasks_repo)
+    _write_all_optional_docs(feat, design_artifacts=True)
+
+    result = _run_setup_tasks_bash(tasks_repo, "--json")
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert json.loads(result.stdout)["AVAILABLE_DOCS"] == _EXPECTED_DOCS_WITH_DESIGN
+
+
+@requires_bash
+def test_setup_tasks_bash_omits_absent_design_artifacts(tasks_repo: Path) -> None:
+    """A feature directory predating this capability still works (FR-013, SC-006)."""
+    feat = _minimal_feature(tasks_repo)
+    _write_all_optional_docs(feat, design_artifacts=False)
+
+    result = _run_setup_tasks_bash(tasks_repo, "--json")
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert json.loads(result.stdout)["AVAILABLE_DOCS"] == _EXPECTED_DOCS_WITHOUT_DESIGN
+
+
+@requires_bash
+def test_setup_tasks_bash_text_mode_reports_design_artifacts(
+    tasks_repo: Path,
+) -> None:
+    """Text mode reports both artifacts through the same check helper."""
+    feat = _minimal_feature(tasks_repo)
+    _write_all_optional_docs(feat, design_artifacts=True)
+    (feat / "design.md").unlink()
+
+    result = _run_setup_tasks_bash(tasks_repo)
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    normalized = result.stdout.replace("\r\n", "\n")
+    assert "\u2713 architecture.md" in normalized, normalized
+    assert "\u2717 design.md" in normalized, normalized

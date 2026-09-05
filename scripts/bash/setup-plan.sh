@@ -64,6 +64,40 @@ else
     fi
 fi
 
+# Resolve the Phase 2 design templates through the override stack.
+#
+# Two-tier failure handling, matching the plan-template block above: a template
+# that is simply absent degrades to an empty value so a project with stale shared
+# templates can still plan, while a template that exists but cannot be composed
+# propagates the resolver's status. The plan command treats an empty value as a
+# blocking error rather than inventing a section structure.
+DESIGN_TEMPLATE_RESULT=""
+resolve_design_template() {
+    local name="$1" content resolve_status
+    DESIGN_TEMPLATE_RESULT=""
+    # The status must be captured in an explicit else branch: after a failed `if`
+    # with no else, bash sets $? to 0, which would swallow both the warning and
+    # the fatal tier.
+    if content=$(resolve_template_content "$name" "$REPO_ROOT"; resolve_status=$?; printf x; exit "$resolve_status"); then
+        DESIGN_TEMPLATE_RESULT="${content%x}"
+        return 0
+    else
+        resolve_status=$?
+        if [ "$resolve_status" -ne 1 ]; then
+            return "$resolve_status"
+        fi
+        # Diagnostic goes to stderr in both modes so text-mode stdout stays a
+        # clean report of paths.
+        echo "Warning: $name not found" >&2
+        return 0
+    fi
+}
+
+resolve_design_template "architecture-template" || exit $?
+ARCHITECTURE_TEMPLATE_CONTENT="$DESIGN_TEMPLATE_RESULT"
+resolve_design_template "design-template" || exit $?
+DESIGN_TEMPLATE_CONTENT="$DESIGN_TEMPLATE_RESULT"
+
 # Output results
 if $JSON_MODE; then
     if has_jq; then
@@ -72,10 +106,12 @@ if $JSON_MODE; then
             --arg impl_plan "$IMPL_PLAN" \
             --arg feature_dir "$FEATURE_DIR" \
             --arg branch "$CURRENT_BRANCH" \
-            '{FEATURE_SPEC:$feature_spec,IMPL_PLAN:$impl_plan,FEATURE_DIR:$feature_dir,BRANCH:$branch}'
+            --arg architecture_template_content "$ARCHITECTURE_TEMPLATE_CONTENT" \
+            --arg design_template_content "$DESIGN_TEMPLATE_CONTENT" \
+            '{FEATURE_SPEC:$feature_spec,IMPL_PLAN:$impl_plan,FEATURE_DIR:$feature_dir,BRANCH:$branch,ARCHITECTURE_TEMPLATE_CONTENT:$architecture_template_content,DESIGN_TEMPLATE_CONTENT:$design_template_content}'
     else
-        printf '{"FEATURE_SPEC":"%s","IMPL_PLAN":"%s","FEATURE_DIR":"%s","BRANCH":"%s"}\n' \
-            "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$CURRENT_BRANCH")"
+        printf '{"FEATURE_SPEC":"%s","IMPL_PLAN":"%s","FEATURE_DIR":"%s","BRANCH":"%s","ARCHITECTURE_TEMPLATE_CONTENT":"%s","DESIGN_TEMPLATE_CONTENT":"%s"}\n' \
+            "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$CURRENT_BRANCH")" "$(json_escape "$ARCHITECTURE_TEMPLATE_CONTENT")" "$(json_escape "$DESIGN_TEMPLATE_CONTENT")"
     fi
 else
     echo "FEATURE_SPEC: $FEATURE_SPEC"

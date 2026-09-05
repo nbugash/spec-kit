@@ -48,6 +48,8 @@ if [[ -d "$CONTRACTS_DIR" ]] && [[ -n "$(ls -A "$CONTRACTS_DIR" 2>/dev/null)" ]]
     docs+=("contracts/")
 fi
 [[ -f "$QUICKSTART" ]] && docs+=("quickstart.md")
+[[ -f "$ARCHITECTURE" ]] && docs+=("architecture.md")
+[[ -f "$DESIGN" ]] && docs+=("design.md")
 
 # Resolve tasks template through override stack
 TASKS_TEMPLATE=$(resolve_template "tasks-template" "$REPO_ROOT") || true
@@ -91,4 +93,6 @@ else
     check_file "$DATA_MODEL" "data-model.md"
     check_dir "$CONTRACTS_DIR" "contracts/"
     check_file "$QUICKSTART" "quickstart.md"
+    check_file "$ARCHITECTURE" "architecture.md"
+    check_file "$DESIGN" "design.md"
 fi

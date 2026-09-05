@@ -176,6 +176,11 @@ fi
 
 [[ -f "$QUICKSTART" ]] && docs+=("quickstart.md")
 
+# Phase 2 design artifacts, before the Phase 3 tasks.md below so the list
+# follows plan-phase order.
+[[ -f "$ARCHITECTURE" ]] && docs+=("architecture.md")
+[[ -f "$DESIGN" ]] && docs+=("design.md")
+
 # Include tasks.md if requested and it exists
 if $INCLUDE_TASKS && [[ -f "$TASKS" ]]; then
     docs+=("tasks.md")
@@ -236,6 +241,8 @@ else
     check_file "$DATA_MODEL" "data-model.md"
     check_dir "$CONTRACTS_DIR" "contracts/"
     check_file "$QUICKSTART" "quickstart.md"
+    check_file "$ARCHITECTURE" "architecture.md"
+    check_file "$DESIGN" "design.md"
 
     if $INCLUDE_TASKS; then
         check_file "$TASKS" "tasks.md"

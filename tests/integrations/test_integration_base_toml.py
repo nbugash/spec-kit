@@ -512,8 +512,10 @@ class TomlIntegrationTests:
                 files.append(f".specify/scripts/powershell/{name}")
 
         for name in [
+            "architecture-template.md",
             "checklist-template.md",
             "constitution-template.md",
+            "design-template.md",
             "plan-template.md",
             "spec-template.md",
             "tasks-template.md",

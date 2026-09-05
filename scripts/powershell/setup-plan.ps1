@@ -71,6 +71,31 @@ if (Test-Path $paths.IMPL_PLAN -PathType Leaf) {
     }
 }
 
+# Resolve the Phase 2 design templates through the override stack.
+#
+# Two-tier failure handling, matching the plan-template block above: an absent
+# template degrades to an empty value so a project with stale shared templates
+# can still plan, while a template that exists but cannot be composed lets
+# Resolve-TemplateContent's error propagate. The plan command treats an empty
+# value as a blocking error rather than inventing a section structure.
+function Resolve-OptionalTemplate {
+    param(
+        [Parameter(Mandatory = $true)][string]$TemplateName,
+        [Parameter(Mandatory = $true)][string]$RepoRoot
+    )
+    $resolved = Resolve-TemplateContent -TemplateName $TemplateName -RepoRoot $RepoRoot
+    if ($null -eq $resolved) {
+        # Diagnostic goes to stderr in both modes so text-mode stdout stays a
+        # clean report of paths.
+        [Console]::Error.WriteLine("Warning: $TemplateName not found")
+        return ''
+    }
+    return $resolved
+}
+
+$architectureTemplateContent = Resolve-OptionalTemplate -TemplateName 'architecture-template' -RepoRoot $paths.REPO_ROOT
+$designTemplateContent = Resolve-OptionalTemplate -TemplateName 'design-template' -RepoRoot $paths.REPO_ROOT
+
 # Output results
 if ($Json) {
     $result = [PSCustomObject]@{
@@ -78,6 +103,8 @@ if ($Json) {
         IMPL_PLAN = $paths.IMPL_PLAN
         FEATURE_DIR = $paths.FEATURE_DIR
         BRANCH = $paths.CURRENT_BRANCH
+        ARCHITECTURE_TEMPLATE_CONTENT = $architectureTemplateContent
+        DESIGN_TEMPLATE_CONTENT = $designTemplateContent
     }
     $result | ConvertTo-Json -Compress
 } else {
