@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -11,7 +12,6 @@ from pathlib import Path
 import yaml
 
 from tests.conftest import requires_bash
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
@@ -24,6 +24,14 @@ PUBLISH_VALIDATION_STEPS = (
     "Verify tag format",
     "Verify tag matches package version",
 )
+FEATURE_ASSESS_WORKFLOW = WORKFLOWS_DIR / "feature-assess.md"
+FEATURE_ASSESS_COMPILED_WORKFLOW = WORKFLOWS_DIR / "feature-assess.lock.yml"
+FEATURE_ASSESS_LABELS = {
+    "feature-go",
+    "feature-needs-clarification",
+    "feature-kill",
+    "feature-invalid",
+}
 COMMUNITY_SUBMISSION_WORKFLOWS = (
     (
         "bundle",
@@ -95,6 +103,22 @@ def _create_pull_request_allowed_files(source_text: str) -> list[str]:
         for line in allowed_files_match.group("files").splitlines()
         if line.strip()
     ]
+
+
+def _workflow_frontmatter(source_text: str) -> dict[str, object]:
+    _, frontmatter, _ = source_text.split("---", maxsplit=2)
+    return yaml.safe_load(frontmatter)
+
+
+def _gh_aw_metadata(compiled_text: str) -> dict[str, object]:
+    metadata_prefix = "# gh-aw-metadata: "
+    first_line = compiled_text.splitlines()[0]
+    assert first_line.startswith(metadata_prefix)
+    return json.loads(first_line.removeprefix(metadata_prefix))
+
+
+def _workflow_step(steps: list[dict[str, object]], name: str) -> dict[str, object]:
+    return next(step for step in steps if step.get("name") == name)
 
 
 def test_github_actions_are_pinned_to_full_commit_shas():
@@ -170,6 +194,104 @@ def test_pinned_action_ref_accepts_uppercase_hex_sha():
     )
 
 
+def test_feature_assess_upgrade_preserves_positive_execution_path():
+    source_text = FEATURE_ASSESS_WORKFLOW.read_text(encoding="utf-8")
+    compiled_text = FEATURE_ASSESS_COMPILED_WORKFLOW.read_text(encoding="utf-8")
+    source = _workflow_frontmatter(source_text)
+    compiled = yaml.safe_load(compiled_text)
+
+    metadata = _gh_aw_metadata(compiled_text)
+    assert metadata["compiler_version"] == "v0.88.7"
+    assert metadata["engine_versions"] == {"copilot": "1.0.80"}
+
+    source_steps = source["steps"]
+    compiled_steps = compiled["jobs"]["agent"]["steps"]
+    expected_step_names = [
+        "Setup uv",
+        "Set up Python",
+        "Install Spec Kit CLI",
+        "Initialize Spec Kit and install the assess extension",
+    ]
+    compiled_step_names = [step.get("name") for step in compiled_steps]
+    assert [
+        compiled_step_names.index(step_name) for step_name in expected_step_names
+    ] == sorted(compiled_step_names.index(step_name) for step_name in expected_step_names)
+
+    for source_step in source_steps:
+        compiled_step = _workflow_step(compiled_steps, source_step["name"])
+        for field in ("continue-on-error", "uses", "with", "working-directory", "run"):
+            if field in source_step:
+                assert compiled_step[field] == source_step[field]
+
+    install_step = _workflow_step(compiled_steps, "Install Spec Kit CLI")
+    assert 'PIP_SUBCOMMAND=pip' in install_step["run"]
+    assert '"$UV_BIN" "$PIP_SUBCOMMAND" install --system .' in install_step["run"]
+
+
+def test_feature_assess_upgrade_preserves_negative_guards():
+    source_text = FEATURE_ASSESS_WORKFLOW.read_text(encoding="utf-8")
+    compiled_text = FEATURE_ASSESS_COMPILED_WORKFLOW.read_text(encoding="utf-8")
+    source = _workflow_frontmatter(source_text)
+    compiled = yaml.safe_load(compiled_text)
+
+    assert (source.get("on") or source[True]) == {
+        "issues": {"types": ["labeled"], "names": ["feature-assess"]},
+        "skip-bots": ["github-actions", "copilot", "dependabot"],
+    }
+    assert (compiled.get("on") or compiled[True]) == {
+        "issues": {"types": ["labeled"]},
+    }
+
+    activation_condition = compiled["jobs"]["activation"]["if"]
+    pre_activation = compiled["jobs"]["pre_activation"]
+    expected_guard = (
+        "github.event_name != 'issues' || github.event.action != 'labeled' || "
+        "github.event.label.name == 'feature-assess'"
+    )
+    assert " ".join(pre_activation["if"].split()) == expected_guard
+    assert " ".join(activation_condition.split()) == (
+        f"needs.pre_activation.outputs.activated == 'true' && ({expected_guard})"
+    )
+    assert pre_activation["steps"][-1]["env"]["GH_AW_SKIP_BOTS"] == (
+        "github-actions,copilot-swe-agent,Copilot,copilot,"
+        "@app/copilot-swe-agent,dependabot"
+    )
+
+    agent = compiled["jobs"]["agent"]
+    assert agent["permissions"] == {"contents": "read", "issues": "read"}
+    assert compiled["jobs"]["safe_outputs"]["permissions"] == {
+        "issues": "write",
+        "pull-requests": "write",
+    }
+
+    safe_outputs_step = _workflow_step(
+        compiled["jobs"]["safe_outputs"]["steps"], "Process Safe Outputs"
+    )
+    safe_outputs = json.loads(
+        safe_outputs_step["env"]["GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG"]
+    )
+    assert safe_outputs["add_comment"] == {"max": 5}
+    assert safe_outputs["add_labels"]["max"] == 1
+    assert set(safe_outputs["add_labels"]["allowed"]) == FEATURE_ASSESS_LABELS
+    assert set(safe_outputs["remove_labels"]["allowed"]) == FEATURE_ASSESS_LABELS
+    assert not {
+        "create_issue",
+        "create_pull_request",
+        "push_to_pull_request",
+    } & safe_outputs.keys()
+
+    assert re.search(r"without applying any verdict\s+label", source_text)
+    assert "never stage,\n  commit, or push" in source_text
+
+    unpinned_refs = [
+        match.group("ref")
+        for match in USES_RE.finditer(compiled_text)
+        if not match.group("ref").startswith(("./", "../"))
+        and not PINNED_SHA_RE.search(match.group("ref"))
+    ]
+    assert unpinned_refs == []
+
+
 def test_community_submission_automation_is_wired_to_allowed_files():
     assignment = WORKFLOWS_DIR / "catalog-assign.yml"
     assignment_text = assignment.read_text(encoding="utf-8")
@@ -197,6 +319,65 @@ def test_community_submission_automation_is_wired_to_allowed_files():
         assert label in assignment_text
 
 
+# Full clauses from the catalog download-URL checks (issue #4185). Assert the
+# complete sentences so independent keywords cannot drift apart.
+_CATALOG_DOWNLOAD_URL_CLAUSES = (
+    (
+        "The download URL MUST belong to the submitted repository\n"
+        "  (`https://github.com/<owner>/<repo>/...` with the same `<owner>/<repo>` as\n"
+        "  the Repository URL). Reject URLs for any other GitHub repository."
+    ),
+    (
+        "If the download URL path contains `releases/latest/`, reject with an\n"
+        "  explanation — this URL is floating and not acceptable. Mark this pinning\n"
+        "  check failed and skip the HTTP request for this URL, then continue the\n"
+        "  remaining validations."
+    ),
+    (
+        "The `<tag>` segment in the URL MUST correspond to the submitted version.\n"
+        "  Accept `vX.Y.Z`, `X.Y.Z`, and scoped tags whose version suffix matches\n"
+        "  (for example `aide-v1.0.0` for version `1.0.0`). Reject a tag whose\n"
+        "  embedded semver does not equal the submitted version."
+    ),
+    (
+        "Only after all pinning checks pass, fetch the download URL and perform the\n"
+        "  remaining artifact checks:\n"
+        "  - Verify the URL returns HTTP 200.\n"
+        "  - If `sha256` is included, verify it matches the downloaded archive. Requiring\n"
+        "    `sha256` on every catalog entry is follow-up work and MUST NOT fail this\n"
+        "    check when the field is absent."
+    ),
+)
+
+
+def test_community_submission_workflows_require_tag_pinned_download_urls():
+    """Catalog agents must reject floating releases/latest URLs (issue #4185)."""
+    for workflow, *_ in COMMUNITY_SUBMISSION_WORKFLOWS:
+        source_text = (WORKFLOWS_DIR / f"add-community-{workflow}.md").read_text(
+            encoding="utf-8"
+        )
+
+        assert "should follow the pattern" not in source_text.lower()
+        for clause in _CATALOG_DOWNLOAD_URL_CLAUSES:
+            assert clause in source_text, f"missing clause in {workflow}: {clause!r}"
+
+        if workflow == "bundle":
+            assert (
+                "`https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>.zip`."
+                in source_text
+            )
+            assert "archive/refs/tags/" not in source_text
+        else:
+            assert (
+                "`https://github.com/<owner>/<repo>/archive/refs/tags/<tag>.zip`"
+                in source_text
+            )
+            assert (
+                "`https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>.zip`"
+                in source_text
+            )
+
+
 def test_community_submission_allowed_files_do_not_include_other_catalogs_or_docs():
     allowed_by_workflow = {
         workflow: set(
@@ -218,6 +399,48 @@ def test_community_submission_allowed_files_do_not_include_other_catalogs_or_doc
                 f"{workflow} and {other_workflow} share allowed files: "
                 f"{sorted(overlapping_files)}"
             )
+
+
+def _frontmatter(source_text: str) -> dict:
+    if not source_text.startswith("---"):
+        raise AssertionError("workflow source is missing YAML frontmatter")
+    _, frontmatter, _ = source_text.split("---", 2)
+    return yaml.safe_load(frontmatter)
+
+
+def test_community_submission_threat_detection_is_fail_closed():
+    for workflow, *_ in COMMUNITY_SUBMISSION_WORKFLOWS:
+        source = WORKFLOWS_DIR / f"add-community-{workflow}.md"
+        compiled = WORKFLOWS_DIR / f"add-community-{workflow}.lock.yml"
+
+        assert source.is_file()
+        assert compiled.is_file()
+
+        safe_outputs = _frontmatter(source.read_text(encoding="utf-8")).get(
+            "safe-outputs", {}
+        )
+        threat_detection = safe_outputs.get("threat-detection")
+        assert threat_detection is not None, (
+            f"add-community-{workflow}.md must configure "
+            "safe-outputs.threat-detection"
+        )
+        assert threat_detection.get("continue-on-error") is False, (
+            f"add-community-{workflow}.md must set threat-detection "
+            "continue-on-error: false so detections block safe outputs"
+        )
+
+        compiled_text = compiled.read_text(encoding="utf-8")
+        assert 'GH_AW_DETECTION_CONTINUE_ON_ERROR: "false"' in compiled_text, (
+            f"add-community-{workflow}.lock.yml must compile threat detection "
+            "in fail-closed mode"
+        )
+        assert (
+            "process.env.GH_AW_DETECTION_CONTINUE_ON_ERROR !== 'false'"
+            in compiled_text
+        ), (
+            f"add-community-{workflow}.lock.yml is missing the detection "
+            "continue-on-error gate"
+        )
 
 
 def test_bug_test_workflow_provisions_python_dependencies():
