@@ -205,7 +205,8 @@ class TestRecordSpec:
 
 class TestMissingMap:
     def test_default_location_is_under_specs(self):
-        assert str(feature_map.DEFAULT_MAP_RELATIVE) == "specs/features-map.md"
+        # as_posix keeps this assertion true on Windows, where str() renders a backslash.
+        assert feature_map.DEFAULT_MAP_RELATIVE.as_posix() == "specs/features-map.md"
 
     def test_resolve_skips_when_no_map_exists(self, tmp_path: Path, capsys):
         missing = tmp_path / "absent.md"
