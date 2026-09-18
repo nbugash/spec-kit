@@ -16,7 +16,7 @@ $ARGUMENTS
 
 ## Prerequisites
 
-The feature map lives at `docs/feature-map.md`. It is optional. When it is absent, every
+The feature map lives at `specs/features-map.md`. It is optional. When it is absent, every
 action below reports `skipped` and exits zero, and specification proceeds exactly as it
 would without this extension.
 

@@ -4,7 +4,7 @@ description: "Add a feature to the map with the correct identity, position and d
 
 # Add a Feature to the Map
 
-Append a feature to `docs/feature-map.md` without breaking its invariants: identities are
+Append a feature to `specs/features-map.md` without breaking its invariants: identities are
 never reused or renumbered, file position conveys build order, and a feature may never
 depend on work positioned below it.
 
@@ -22,11 +22,14 @@ python3 .specify/extensions/featuremap/scripts/python/feature_map.py verify
 ```
 
 If the map reports integrity problems, stop and report them. Adding to an inconsistent map
-propagates the inconsistency. If it reports `skipped`, there is no map yet; say so and stop
-rather than creating one silently, because the map's tier structure is a project decision.
+propagates the inconsistency.
 
-Then read `docs/feature-map.md` to learn the existing tiers, what is already checked, and
-where comparable features sit.
+If it reports `skipped`, no map exists yet. That is not an error here: this command creates
+one at `specs/features-map.md` on the first add, and the feature it inserts becomes `F000`.
+Say that the map is being created, so the user knows a new artifact appeared.
+
+Otherwise read `specs/features-map.md` to learn the existing tiers, what is already checked,
+and where comparable features sit.
 
 ## Step 2: Derive a proposal
 

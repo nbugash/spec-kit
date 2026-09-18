@@ -24,9 +24,13 @@ makes that ordering explicit and enforceable:
 specify extension add featuremap
 ```
 
-Then create `docs/feature-map.md`. The map is optional: with no map present, the hook
+The map lives at `specs/features-map.md` and is optional. With no map present the hook
 reports `skipped` and the specify workflow behaves exactly as it does without this
 extension.
+
+The first `speckit.featuremap.add` creates the map and assigns `F000`. Only `add` creates
+it: resolving never does, because the gate runs on every specification and must not opt a
+project into sequencing it did not ask for.
 
 ## Map format
 
@@ -74,7 +78,7 @@ the add command instead of writing a specification.
 | `record-spec F0NN specs/NNN-slug` | Records which specification directory a feature produced. |
 
 All actions accept `--json` for machine-readable output and `--map` to point at a map
-outside the default `docs/feature-map.md`. Exit codes: `0` ready or skipped, `2` blocked or
+outside the default `specs/features-map.md`. Exit codes: `0` ready or skipped, `2` blocked or
 integrity failure, `1` usage or I/O error.
 
 ## Relationship to a project constitution

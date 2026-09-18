@@ -8,7 +8,9 @@ declares is checked.
 
 The map is optional. When it is absent every read action reports `skipped` and
 exits zero, so the mandatory before_specify hook never blocks a project that
-does not keep one.
+does not keep one. Only `add` creates a map, because adding a feature is an
+explicit request for a backlog; resolving one must never opt a project into
+sequencing it did not ask for.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_MAP_RELATIVE = Path("docs/feature-map.md")
+DEFAULT_MAP_RELATIVE = Path("specs/features-map.md")
 
 FEATURE_RE = re.compile(r"^- \[([ xX])\] \*\*(F\d{3}) ([a-z0-9][a-z0-9-]*)\*\*(.*)$")
 SUBFEATURE_RE = re.compile(r"^ {2}- \[([ xX])\] (.+)$")
@@ -30,6 +32,18 @@ FEATURE_ID_RE = re.compile(r"F\d{3}")
 SLUG_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 SPEC_UNSET = "not yet specified"
+
+SKELETON = """# Feature Map
+
+Ordered backlog. Work top to bottom: every feature's dependencies sit above it.
+
+Identities such as `F000` are immutable and never renumbered or reused; file
+position conveys build order. A checkbox is evidence that the work is done, not
+an intention to do it.
+
+## Features
+
+"""
 
 
 class FeatureMapError(Exception):
@@ -273,13 +287,13 @@ def add_feature(
     if not subfeatures:
         raise FeatureMapError("a new feature needs at least one subfeature")
 
-    next_number = max(int(feature.identity[1:]) for feature in features) + 1
+    next_number = max((int(feature.identity[1:]) for feature in features), default=-1) + 1
     if next_number > 999:
         raise FeatureMapError("identity space F000-F999 is exhausted")
     identity = f"F{next_number:03d}"
 
     by_identity = {feature.identity: feature for feature in features}
-    if after is None:
+    if after is None or not features:
         anchor_index = len(features) - 1
     else:
         anchor = by_identity.get(after.strip().upper())
@@ -302,7 +316,9 @@ def add_feature(
         return {"STATUS": "preview", "FEATURE_ID": identity, "BLOCK": block}
 
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    if anchor_index + 1 < len(features):
+    if not features:
+        insert_at = len(lines)
+    elif anchor_index + 1 < len(features):
         insert_at = features[anchor_index + 1].line_no - 1
     else:
         insert_at = len(lines)
@@ -414,22 +430,34 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         path = root / DEFAULT_MAP_RELATIVE
 
+    created = False
     if not path.is_file():
-        payload = {
-            "STATUS": "skipped",
-            "REASON": f"no feature map at {path}; the sequence gate does not apply",
-        }
-        if args.action == "add":
-            print(f"ERROR: {payload['REASON']}", file=sys.stderr)
+        if args.action != "add":
+            emit(
+                {
+                    "STATUS": "skipped",
+                    "REASON": f"no feature map at {path}; the sequence gate does not apply",
+                },
+                args.json,
+            )
+            return 0
+        if args.dry_run:
+            features = []
+        else:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(SKELETON, encoding="utf-8")
+            except OSError as error:
+                print(f"ERROR: cannot create {path}: {error}", file=sys.stderr)
+                return 1
+            created = True
+            features = []
+    else:
+        try:
+            features = load(path)
+        except FeatureMapError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
             return 1
-        emit(payload, args.json)
-        return 0
-
-    try:
-        features = load(path)
-    except FeatureMapError as error:
-        print(f"ERROR: {error}", file=sys.stderr)
-        return 1
 
     problems = verify(features)
     if problems and args.action != "verify":
@@ -477,9 +505,13 @@ def main(argv: list[str] | None = None) -> int:
         except FeatureMapError as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 1
+        payload["MAP_PATH"] = str(path)
+        payload["MAP_CREATED"] = created
         if args.json:
             print(json.dumps(payload, indent=2))
         else:
+            if created:
+                print(f"CREATED: {path}")
             print(f"{'PREVIEW' if payload['STATUS'] == 'preview' else 'ADDED'}: {payload['FEATURE_ID']}")
             print(payload["BLOCK"], end="")
         return 0

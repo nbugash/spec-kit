@@ -204,11 +204,54 @@ class TestRecordSpec:
 
 
 class TestMissingMap:
+    def test_default_location_is_under_specs(self):
+        assert str(feature_map.DEFAULT_MAP_RELATIVE) == "specs/features-map.md"
+
     def test_resolve_skips_when_no_map_exists(self, tmp_path: Path, capsys):
         missing = tmp_path / "absent.md"
         assert feature_map.main(["resolve", "--map", str(missing)]) == 0
         assert "SKIPPED" in capsys.readouterr().out
 
-    def test_add_refuses_when_no_map_exists(self, tmp_path: Path):
+    def test_resolve_does_not_create_a_map(self, tmp_path: Path):
         missing = tmp_path / "absent.md"
-        assert feature_map.main(["add", "--slug", "x", "--map", str(missing)]) == 1
+        feature_map.main(["resolve", "--map", str(missing)])
+        assert not missing.exists()
+
+    def test_verify_does_not_create_a_map(self, tmp_path: Path):
+        missing = tmp_path / "absent.md"
+        feature_map.main(["verify", "--map", str(missing)])
+        assert not missing.exists()
+
+    def test_add_creates_the_map_and_assigns_f000(self, tmp_path: Path, capsys):
+        missing = tmp_path / "specs" / "features-map.md"
+        code = feature_map.main(
+            ["add", "--slug", "engineering-baseline", "--subfeature", "Lint rule", "--map", str(missing)]
+        )
+        assert code == 0
+        assert missing.exists()
+        output = capsys.readouterr().out
+        assert "CREATED" in output
+        features = parse(missing.read_text(encoding="utf-8"))
+        assert [f.identity for f in features] == ["F000"]
+        assert features[0].slug == "engineering-baseline"
+        assert not features[0].done
+        assert verify(features) == []
+
+    def test_add_dry_run_does_not_create_the_map(self, tmp_path: Path):
+        missing = tmp_path / "specs" / "features-map.md"
+        code = feature_map.main(
+            ["add", "--slug", "x", "--subfeature", "y", "--map", str(missing), "--dry-run"]
+        )
+        assert code == 0
+        assert not missing.exists()
+
+    def test_second_add_against_a_bootstrapped_map_continues_numbering(self, tmp_path: Path):
+        path = tmp_path / "specs" / "features-map.md"
+        feature_map.main(["add", "--slug", "first", "--subfeature", "a", "--map", str(path)])
+        feature_map.main(
+            ["add", "--slug", "second", "--depends", "F000", "--subfeature", "b", "--map", str(path)]
+        )
+        features = parse(path.read_text(encoding="utf-8"))
+        assert [f.identity for f in features] == ["F000", "F001"]
+        assert features[1].depends == ["F000"]
+        assert verify(features) == []

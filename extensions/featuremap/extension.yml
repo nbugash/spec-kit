@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: featuremap
   name: "Feature Map Sequencing"
-  version: "1.0.0"
+  version: "1.1.0"
   description: "Ordered feature backlog with immutable identities, dependency-aware sequencing, and a gate that refuses to specify a feature whose prerequisites are incomplete"
   author: nbugash
   repository: https://github.com/nbugash/spec-kit
